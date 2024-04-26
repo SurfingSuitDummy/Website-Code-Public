@@ -1,0 +1,78 @@
+# Pull data from Crypto API on Coinmarketcap.com
+from requests import Request, Session
+from requests.exceptions import ConnectionError, Timeout, TooManyRedirects
+import json
+
+# Create/ Manipulate DataFrame & CSV file.
+import pandas as PD
+
+
+import os
+from time import time as T, sleep as Sleep
+
+
+# Pull data from Crypto API on Coinmarketcap.com
+def API_Initiate():
+    global DataFrame
+    url = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest'
+    parameters = {
+      'start':'1',
+      'limit':'20',
+      'convert':'USD'
+    }
+    headers = {
+      'Accepts': 'application/json',
+      'X-CMC_PRO_API_KEY': '952ad681-2c9f-402a-88f8-ffec5cc3a4cd',
+    }
+
+    session = Session()
+    session.headers.update(headers)
+
+    try:
+      response = session.get(url, params=parameters)
+      data = json.loads(response.text)
+    #  print(data)
+    except (ConnectionError, Timeout, TooManyRedirects) as e:
+      print(e)
+
+   # Create/ Manipulate DataFrame. 
+    DataFrame = PD.json_normalize(data['data'])
+    DataFrame ['User Added Timestamp'] = PD.to_datetime('now')
+
+
+# Creates DataFrame to store concatenated frames within Jupyter Notebooks prior to saving out to CSV.
+DataFrame_Data_Storage = PD.DataFrame()
+
+# Automatically run user defined function to pull data every XX seconds for X minutes. Concatenates this
+# data prior to saving
+for API_Run in range(10):   
+    API_Initiate()
+    # Concatenate empty dataframe to new data in API_Initiate function.
+    DataFrame2 = PD.concat([DataFrame_Data_Storage, DataFrame], ignore_index = True)
+    # Store Data from runs prior to saving out to CSV.
+    DataFrame_Data_Storage = DataFrame2
+#    print ('API Initiated')
+   # Sleep for XX seconds
+    Sleep(60)
+exit()   
+
+
+# Group by 'name' and generate the mean & standard deviation of the % changes over time.
+DataFrame_Data_Storage['Price_Mean'] = DataFrame_Data_Storage.groupby('name')['quote.USD.price'].transform('mean')
+DataFrame_Data_Storage['Price_Std'] = DataFrame_Data_Storage.groupby('name')['quote.USD.price'].transform('std')
+
+PD.set_option('display.float_format',lambda x: '%.5f' % x)
+# PD.set_option('display.max_columns',None)
+# PD.set_option('display.max_rows',None)
+
+# print(DataFrame_Data_Storage)
+
+# Creates CSV file if one is not already created and updates an already created CSV.
+if not os.path.isfile(r'C:\Users\davej\OneDrive\Desktop\Data Analyst Bootcamp\Python\Crypto API\Crypto_API_Final.csv'):
+    DataFrame_Data_Storage.to_csv(r'C:\Users\davej\OneDrive\Desktop\Data Analyst Bootcamp\Python\Crypto API\Crypto_API_Final.csv', header = 'column_names')
+else:
+    DataFrame_Data_Storage.to_csv(r'C:\Users\davej\OneDrive\Desktop\Data Analyst Bootcamp\Python\Crypto API\Crypto_API_Final.csv', mode = 'a', header = False)
+
+
+
+print ('Run Complete')
